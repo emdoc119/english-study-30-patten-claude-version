@@ -393,6 +393,7 @@ function loadState() {
     return {
       streak: s.streak || 0,
       totalDone: s.totalDone || 0,
+      ratings: s.ratings || {},
       lastDate: s.lastDate || '',
       todayDone: s.todayDone || 0,
     };
@@ -544,13 +545,11 @@ function loadQuestion() {
   document.getElementById('answer-area').style.display = 'flex';
   document.getElementById('answer-revealed').style.display = 'none';
   document.getElementById('my-answer-row').style.display = 'none';
-  document.getElementById('selfrate-row').style.display = 'none';
   document.getElementById('check-btn').style.display = 'flex';
   document.getElementById('next-btn').style.display = 'none';
   document.getElementById('check-btn').style.background = 'var(--surface2)';
   document.getElementById('check-btn').style.color = 'var(--text3)';
   document.getElementById('check-btn').style.pointerEvents = 'none';
-  document.getElementById('selfrate-row') && void 0;
   answered = false;
 }
 
@@ -597,7 +596,6 @@ function nextQuestion() {
 
 function showComplete() {
   document.getElementById('cstat-total').textContent = session.total;
-  document.getElementById('cstat-streak').textContent = state.streak;
   const msgs = ["오늘도 멋지게 해냈습니다!\n꾸준함이 실력이 됩니다.", "완벽해요! 매일 조금씩 나아지고 있어요.", "훌륭합니다! 반복이 곧 유창함입니다."];
   document.getElementById('complete-sub').textContent = msgs[Math.floor(Math.random()*msgs.length)];
   showScreen('complete');
