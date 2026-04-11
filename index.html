@@ -167,15 +167,7 @@
   .cta-primary:disabled { background:var(--surface2); color:var(--text3); cursor:not-allowed; transform:none; }
   .cta-next { background:var(--accent); color:#fff; box-shadow:0 8px 30px var(--accent-glow); }
 
-  /* SELF-RATE */
-  .selfrate-row { display:flex; gap:8px; margin-bottom:12px; flex-shrink:0; }
-  .rate-btn { flex:1; padding:12px 8px; border-radius:16px; border:1.5px solid var(--border); background:var(--surface); cursor:pointer; transition:all 0.15s; display:flex; flex-direction:column; align-items:center; gap:4px; }
-  .rate-btn:active { transform:scale(0.95); }
-  .rate-btn.selected-hard { border-color:var(--red); background:rgba(255,69,96,0.1); }
-  .rate-btn.selected-ok { border-color:var(--yellow); background:rgba(255,209,102,0.1); }
-  .rate-btn.selected-easy { border-color:var(--green); background:rgba(34,211,165,0.1); }
-  .rate-icon { font-size:18px; }
-  .rate-text { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--text3); }
+
 
   /* ===================== COMPLETE ===================== */
   #complete { padding: calc(var(--safe-top) + 20px) 24px calc(var(--safe-bottom) + 24px); align-items:center; justify-content:center; gap:20px; }
@@ -235,7 +227,6 @@
     <div class="stats-row slide-up delay-2">
       <div class="stat-pill"><div class="stat-num" id="stat-streak">0</div><div class="stat-lbl">연속 일수</div></div>
       <div class="stat-pill"><div class="stat-num" id="stat-total">0</div><div class="stat-lbl">총 학습</div></div>
-      <div class="stat-pill"><div class="stat-num" id="stat-easy">0%</div><div class="stat-lbl">완숙도</div></div>
     </div>
 
     <div class="section-label slide-up delay-2">학습 모드</div>
@@ -259,11 +250,6 @@
         <div class="sec-card-icon" style="background:rgba(255,209,102,0.12);">🎲</div>
         <div class="sec-card-title">랜덤<br>테스트</div>
         <div class="sec-card-sub">무작위 셔플</div>
-      </div>
-      <div class="sec-card" onclick="startMode('HARD')">
-        <div class="sec-card-icon" style="background:rgba(255,69,96,0.12);">🎯</div>
-        <div class="sec-card-title">어려운 것<br>다시 보기</div>
-        <div class="sec-card-sub">취약 패턴</div>
       </div>
     </div>
 
@@ -330,11 +316,7 @@
       <div class="my-answer-text" id="my-answer-display">—</div>
     </div>
 
-    <div class="selfrate-row" id="selfrate-row" style="display:none;">
-      <div class="rate-btn" id="rate-hard" onclick="rate('hard')"><div class="rate-icon">😓</div><div class="rate-text">어려움</div></div>
-      <div class="rate-btn" id="rate-ok" onclick="rate('ok')"><div class="rate-icon">🙂</div><div class="rate-text">보통</div></div>
-      <div class="rate-btn" id="rate-easy" onclick="rate('easy')"><div class="rate-icon">🔥</div><div class="rate-text">완숙</div></div>
-    </div>
+
   </div>
 
   <div class="study-footer">
@@ -350,8 +332,7 @@
   <div class="complete-sub" id="complete-sub">오늘도 멋지게 해냈습니다.<br>꾸준함이 실력이 됩니다.</div>
   <div class="complete-stats">
     <div class="complete-stat"><div class="complete-stat-num" id="cstat-total">0</div><div class="complete-stat-lbl">총 문제</div></div>
-    <div class="complete-stat"><div class="complete-stat-num" id="cstat-easy">0</div><div class="complete-stat-lbl">완숙</div></div>
-    <div class="complete-stat"><div class="complete-stat-num" id="cstat-hard">0</div><div class="complete-stat-lbl">복습 필요</div></div>
+    <div class="complete-stat"><div class="complete-stat-num" id="cstat-streak">0</div><div class="complete-stat-lbl">연속 일수</div></div>
   </div>
   <div class="complete-home-btn" onclick="goHome()">홈으로 돌아가기</div>
 </div>
@@ -401,11 +382,10 @@ const PART_COLORS = {
 
 // --- STATE ---
 let state = loadState();
-let session = { queue:[], idx:0, mode:'', ratings:{hard:0,ok:0,easy:0}, total:0 };
+let session = { queue:[], idx:0, mode:'', total:0 };
 let recognition = null;
 let isListening = false;
 let answered = false;
-let selectedRate = null;
 
 function loadState() {
   try {
@@ -413,7 +393,6 @@ function loadState() {
     return {
       streak: s.streak || 0,
       totalDone: s.totalDone || 0,
-      ratings: s.ratings || {},     // quizKey -> 'hard'|'ok'|'easy'
       lastDate: s.lastDate || '',
       todayDone: s.todayDone || 0,
     };
@@ -449,9 +428,6 @@ function renderHome() {
   document.getElementById('home-progress-fill').style.width = pct+'%';
   document.getElementById('stat-streak').textContent = state.streak;
   document.getElementById('stat-total').textContent = state.totalDone;
-  const easyCount = Object.values(state.ratings).filter(r=>r==='easy').length;
-  const easyPct = Object.keys(state.ratings).length > 0 ? Math.round(easyCount/Object.keys(state.ratings).length*100) : 0;
-  document.getElementById('stat-easy').textContent = easyPct+'%';
 }
 
 function renderPartList() {
@@ -460,33 +436,21 @@ function renderPartList() {
   container.innerHTML = '';
   parts.forEach(part => {
     const pats = PATTERNS.filter(p=>p.part===part);
-    const quizKeys = pats.flatMap(p=>p.quizzes.map((_,i)=>`${p.id}_${i}`));
-    const done = quizKeys.filter(k=>state.ratings[k]).length;
-    const easy = quizKeys.filter(k=>state.ratings[k]==='easy').length;
-    const pct = Math.round(done/quizKeys.length*100);
+    const totalQ = pats.reduce((s,p)=>s+p.quizzes.length,0);
     const c = PART_COLORS[part];
     const partInfo = { "PART 1":["Actions & Intentions","7 패턴"], "PART 2":["Requests & Politeness","6 패턴"], "PART 3":["Opinions & Senses","6 패턴"], "PART 4":["Logic & Situations","11 패턴"] };
     const [en, count] = partInfo[part];
-    const radius = 17; const circumference = 2*Math.PI*radius;
-    const offset = circumference - (pct/100)*circumference;
     container.innerHTML += `
       <div class="part-card" onclick="startPart('${part}')">
         <div class="part-card-inner">
-          <div class="progress-ring-wrap">
-            <svg width="46" height="46" viewBox="0 0 46 46">
-              <circle cx="23" cy="23" r="${radius}" fill="none" stroke="${c.bg.replace('0.12','0.3')}" stroke-width="3"/>
-              <circle cx="23" cy="23" r="${radius}" fill="none" stroke="${c.color}" stroke-width="3" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" stroke-linecap="round" style="transition:stroke-dashoffset 0.6s"/>
-            </svg>
-            <div class="progress-ring-label">${pct}%</div>
-          </div>
+          <div class="part-badge" style="background:${c.bg};color:${c.color};font-size:11px;font-weight:700;">${part.replace('PART ','P')}</div>
           <div class="part-info">
             <div class="part-num">${part} · ${count}</div>
             <div class="part-title" style="color:${c.color}">${getCategoryName(part)}</div>
             <div class="part-en">${en}</div>
           </div>
           <div style="text-align:right;">
-            <div class="part-meta" style="color:${c.color}">${done}<span style="color:var(--text3)">/${quizKeys.length}</span></div>
-            <div style="font-size:10px;color:var(--text3);margin-top:2px;">완숙 ${easy}</div>
+            <div class="part-meta" style="color:${c.color}">${totalQ}<span style="color:var(--text3)"> 문제</span></div>
           </div>
           <div class="part-chevron">›</div>
         </div>
@@ -556,8 +520,8 @@ function startPart(part) {
 }
 
 function beginSession(queue, mode) {
-  session = { queue, idx:0, mode, ratings:{hard:0,ok:0,easy:0}, total:queue.length };
-  answered = false; selectedRate = null;
+  session = { queue, idx:0, mode, total:queue.length };
+  answered = false;
   document.getElementById('study-mode-label').textContent = mode.replace('PART ','Part ');
   loadQuestion();
   showScreen('study');
@@ -586,8 +550,8 @@ function loadQuestion() {
   document.getElementById('check-btn').style.background = 'var(--surface2)';
   document.getElementById('check-btn').style.color = 'var(--text3)';
   document.getElementById('check-btn').style.pointerEvents = 'none';
-  ['rate-hard','rate-ok','rate-easy'].forEach(id=>{ document.getElementById(id).className='rate-btn'; });
-  answered = false; selectedRate = null;
+  document.getElementById('selfrate-row') && void 0;
+  answered = false;
 }
 
 function onAnswerInput() {
@@ -608,7 +572,6 @@ function checkAnswer() {
   document.getElementById('answer-area').style.display = 'none';
   document.getElementById('answer-revealed').style.display = 'flex';
   document.getElementById('my-answer-row').style.display = 'block';
-  document.getElementById('selfrate-row').style.display = 'flex';
   document.getElementById('check-btn').style.display = 'none';
   document.getElementById('next-btn').style.display = 'flex';
   speakCurrent();
@@ -620,18 +583,9 @@ function checkAnswer() {
   saveState();
 }
 
-function rate(r) {
-  selectedRate = r;
-  ['hard','ok','easy'].forEach(x=>{ document.getElementById('rate-'+x).className='rate-btn'; });
-  document.getElementById('rate-'+r).className = `rate-btn selected-${r}`;
-  const q = session.queue[session.idx];
-  state.ratings[q.quizKey] = r;
-  session.ratings[r]++;
-  saveState();
-}
+
 
 function nextQuestion() {
-  if (!selectedRate) { showToast('난이도를 선택해 주세요 😊'); return; }
   if (isListening) stopMic();
   if (session.idx < session.total - 1) {
     session.idx++;
@@ -643,8 +597,7 @@ function nextQuestion() {
 
 function showComplete() {
   document.getElementById('cstat-total').textContent = session.total;
-  document.getElementById('cstat-easy').textContent = session.ratings.easy;
-  document.getElementById('cstat-hard').textContent = session.ratings.hard;
+  document.getElementById('cstat-streak').textContent = state.streak;
   const msgs = ["오늘도 멋지게 해냈습니다!\n꾸준함이 실력이 됩니다.", "완벽해요! 매일 조금씩 나아지고 있어요.", "훌륭합니다! 반복이 곧 유창함입니다."];
   document.getElementById('complete-sub').textContent = msgs[Math.floor(Math.random()*msgs.length)];
   showScreen('complete');
